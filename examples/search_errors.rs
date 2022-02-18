@@ -53,7 +53,7 @@ fn run(f: GlobResult) -> Result<(PathBuf, Option<usize>, usize), FileStatus> {
     let f = f.map_err(FileStatus::Glob)?;
 
     println!("Analysing {:?}", f.display());
-    let mut xl = open_workbook_auto(&f, None).unwrap();
+    let mut xl = open_workbook_auto(&f).unwrap();
 
     let mut missing = None;
     let mut cell_errors = 0;

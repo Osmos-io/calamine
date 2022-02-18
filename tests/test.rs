@@ -33,7 +33,7 @@ fn issue_2() {
     setup();
 
     let path = format!("{}/tests/issues.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("issue2").unwrap().unwrap();
     range_eq!(
@@ -52,7 +52,7 @@ fn issue_3() {
 
     // test if sheet is resolved with only one row
     let path = format!("{}/tests/issue3.xlsm", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("Sheet1").unwrap().unwrap();
     range_eq!(range, [[Float(1.), String("a".to_string())]]);
@@ -64,7 +64,7 @@ fn issue_4() {
 
     // test if sheet is resolved with only one row
     let path = format!("{}/tests/issues.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("issue5").unwrap().unwrap();
     range_eq!(range, [[Float(0.5)]]);
@@ -76,7 +76,7 @@ fn issue_6() {
 
     // test if sheet is resolved with only one row
     let path = format!("{}/tests/issues.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("issue6").unwrap().unwrap();
     range_eq!(
@@ -95,7 +95,7 @@ fn error_file() {
     setup();
 
     let path = format!("{}/tests/errors.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("Feuil1").unwrap().unwrap();
     range_eq!(
@@ -117,7 +117,7 @@ fn issue_9() {
     setup();
 
     let path = format!("{}/tests/issue9.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("Feuil1").unwrap().unwrap();
     range_eq!(
@@ -136,7 +136,7 @@ fn vba() {
     setup();
 
     let path = format!("{}/tests/vba.xlsm", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let mut vba = excel.vba_project().unwrap().unwrap();
     assert_eq!(
@@ -151,7 +151,7 @@ fn xlsb() {
     setup();
 
     let path = format!("{}/tests/issues.xlsb", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsb<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsb<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("issue2").unwrap().unwrap();
     range_eq!(
@@ -169,7 +169,7 @@ fn xlsx() {
     setup();
 
     let path = format!("{}/tests/issues.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("issue2").unwrap().unwrap();
     range_eq!(
@@ -187,7 +187,7 @@ fn xls() {
     setup();
 
     let path = format!("{}/tests/issues.xls", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xls<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xls<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("issue2").unwrap().unwrap();
     range_eq!(
@@ -210,7 +210,7 @@ fn issue_195() {
         "{}/JLCPCB SMT Parts Library(20210204).xls",
         env!("CARGO_MANIFEST_DIR")
     );
-    let mut excel: Xls<_> = open_workbook(&path, None).expect("can't open wb");
+    let mut excel: Xls<_> = open_workbook(&path).expect("can't open wb");
     let range = excel
         .worksheet_range("JLCPCB SMT Parts Library")
         .expect("error in wks range")
@@ -223,7 +223,7 @@ fn ods() {
     setup();
 
     let path = format!("{}/tests/issues.ods", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Ods<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Ods<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("datatypes").unwrap().unwrap();
     range_eq!(
@@ -257,7 +257,7 @@ fn ods_covered() {
     setup();
 
     let path = format!("{}/tests/covered.ods", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Ods<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Ods<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("sheet1").unwrap().unwrap();
     range_eq!(
@@ -273,7 +273,7 @@ fn ods_covered() {
 #[test]
 fn special_cells() {
     let path = format!("{}/tests/special_cells.ods", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Ods<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Ods<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("sheet1").unwrap().unwrap();
     range_eq!(
@@ -290,7 +290,7 @@ fn special_chrs_xlsx() {
     setup();
 
     let path = format!("{}/tests/issues.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("spc_chrs").unwrap().unwrap();
     range_eq!(
@@ -313,7 +313,7 @@ fn special_chrs_xlsb() {
     setup();
 
     let path = format!("{}/tests/issues.xlsb", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsb<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsb<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("spc_chrs").unwrap().unwrap();
     range_eq!(
@@ -336,7 +336,7 @@ fn special_chrs_ods() {
     setup();
 
     let path = format!("{}/tests/issues.ods", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Ods<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Ods<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("spc_chrs").unwrap().unwrap();
     range_eq!(
@@ -359,7 +359,7 @@ fn partial_richtext_ods() {
     setup();
 
     let path = format!("{}/tests/richtext_issue.ods", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Ods<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Ods<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("datatypes").unwrap().unwrap();
     range_eq!(range, [[String("abc".to_string())]]);
@@ -373,7 +373,7 @@ fn xlsx_richtext_namespaced() {
         "{}/tests/richtext-namespaced.xlsx",
         env!("CARGO_MANIFEST_DIR")
     );
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("Sheet1").unwrap().unwrap();
     range_eq!(
@@ -396,7 +396,7 @@ fn defined_names_xlsx() {
     setup();
 
     let path = format!("{}/tests/issues.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let mut defined_names = excel.defined_names().to_vec();
     defined_names.sort();
@@ -415,7 +415,7 @@ fn defined_names_xlsb() {
     setup();
 
     let path = format!("{}/tests/issues.xlsb", env!("CARGO_MANIFEST_DIR"));
-    let excel: Xlsb<_> = open_workbook(&path, None).unwrap();
+    let excel: Xlsb<_> = open_workbook(&path).unwrap();
 
     let mut defined_names = excel.defined_names().to_vec();
     defined_names.sort();
@@ -434,7 +434,7 @@ fn defined_names_xls() {
     setup();
 
     let path = format!("{}/tests/issues.xls", env!("CARGO_MANIFEST_DIR"));
-    let excel: Xls<_> = open_workbook(&path, None).unwrap();
+    let excel: Xls<_> = open_workbook(&path).unwrap();
 
     let mut defined_names = excel.defined_names().to_vec();
     defined_names.sort();
@@ -453,7 +453,7 @@ fn defined_names_ods() {
     setup();
 
     let path = format!("{}/tests/issues.ods", env!("CARGO_MANIFEST_DIR"));
-    let excel: Ods<_> = open_workbook(&path, None).unwrap();
+    let excel: Ods<_> = open_workbook(&path).unwrap();
 
     let mut defined_names = excel.defined_names().to_vec();
     defined_names.sort();
@@ -481,7 +481,7 @@ fn parse_sheet_names_in_xls() {
         "{}/tests/sheet_name_parsing.xls",
         env!("CARGO_MANIFEST_DIR")
     );
-    let excel: Xls<_> = open_workbook(&path, None).unwrap();
+    let excel: Xls<_> = open_workbook(&path).unwrap();
     assert_eq!(excel.sheet_names(), &["Sheet1"]);
 }
 
@@ -491,7 +491,7 @@ fn read_xls_from_memory() {
 
     const DATA_XLS: &[u8] = include_bytes!("sheet_name_parsing.xls");
     let reader = Cursor::new(DATA_XLS);
-    let excel = Xls::new(reader, None).unwrap();
+    let excel = Xls::new(reader).unwrap();
     assert_eq!(excel.sheet_names(), &["Sheet1"]);
 }
 
@@ -500,7 +500,7 @@ fn search_references() {
     setup();
 
     let path = format!("{}/tests/vba.xlsm", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
     let vba = excel.vba_project().unwrap().unwrap();
     let references = vba.get_references();
     let names = references.iter().map(|r| &*r.name).collect::<Vec<&str>>();
@@ -512,7 +512,7 @@ fn formula_xlsx() {
     setup();
 
     let path = format!("{}/tests/issues.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let sheets = excel.sheet_names().to_owned();
     for s in sheets {
@@ -528,7 +528,7 @@ fn formula_xlsb() {
     setup();
 
     let path = format!("{}/tests/issues.xlsb", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsb<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsb<_> = open_workbook(&path).unwrap();
 
     let sheets = excel.sheet_names().to_owned();
     for s in sheets {
@@ -544,7 +544,7 @@ fn formula_vals_xlsb() {
     setup();
 
     let path = format!("{}/tests/issue_182.xlsb", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsb<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsb<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("formula_vals").unwrap().unwrap();
     range_eq!(
@@ -558,7 +558,7 @@ fn float_vals_xlsb() {
     setup();
 
     let path = format!("{}/tests/issue_186.xlsb", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsb<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsb<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("Sheet1").unwrap().unwrap();
     range_eq!(
@@ -578,7 +578,7 @@ fn formula_xls() {
     setup();
 
     let path = format!("{}/tests/issues.xls", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xls<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xls<_> = open_workbook(&path).unwrap();
 
     let sheets = excel.sheet_names().to_owned();
     for s in sheets {
@@ -594,7 +594,7 @@ fn formula_ods() {
     setup();
 
     let path = format!("{}/tests/issues.ods", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Ods<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Ods<_> = open_workbook(&path).unwrap();
 
     for s in excel.sheet_names().to_owned() {
         let _ = excel.worksheet_formula(&s).unwrap().unwrap();
@@ -609,7 +609,7 @@ fn empty_sheet() {
     setup();
 
     let path = format!("{}/tests/empty_sheet.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
     for s in excel.sheet_names().to_owned() {
         let range = excel.worksheet_range(&s).unwrap().unwrap();
         assert_eq!(range.start(), None, "wrong start");
@@ -623,7 +623,7 @@ fn issue_120() {
     setup();
 
     let path = format!("{}/tests/issues.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("issue2").unwrap().unwrap();
     let end = range.end().unwrap();
@@ -649,7 +649,7 @@ fn issue_127() {
 
     for ext in &["ods", "xls", "xlsx", "xlsb"] {
         let p = format!("{}/tests/issue127.{}", root, ext);
-        let workbook = open_workbook_auto(&p, None).expect(&p);
+        let workbook = open_workbook_auto(&p).expect(&p);
         assert_eq!(
             workbook.sheet_names(),
             &ordered_names[..],
@@ -667,7 +667,7 @@ fn mul_rk() {
         "{}/tests/adhocallbabynames1996to2016.xls",
         env!("CARGO_MANIFEST_DIR")
     );
-    let mut xls: Xls<_> = open_workbook(&path, None).unwrap();
+    let mut xls: Xls<_> = open_workbook(&path).unwrap();
     let range = xls.worksheet_range("Boys").unwrap().unwrap();
     assert_eq!(range.get_value((6, 2)), Some(&Float(9.)));
 }
@@ -677,7 +677,7 @@ fn skip_phonetic_text() {
     setup();
 
     let path = format!("{}/tests/rph.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut xls: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut xls: Xlsx<_> = open_workbook(&path).unwrap();
     let range = xls.worksheet_range("Sheet1").unwrap().unwrap();
     assert_eq!(
         range.get_value((0, 0)),
@@ -690,7 +690,7 @@ fn issue_174() {
     setup();
 
     let path = format!("{}/tests/issue_174.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut xls: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut xls: Xlsx<_> = open_workbook(&path).unwrap();
     xls.worksheet_range_at(0).unwrap().unwrap();
 }
 
@@ -701,7 +701,7 @@ fn table() {
         "{}/tests/temperature-table.xlsx",
         env!("CARGO_MANIFEST_DIR")
     );
-    let mut xls: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut xls: Xlsx<_> = open_workbook(&path).unwrap();
     xls.load_tables().unwrap();
     let table_names = xls.table_names();
     assert_eq!(table_names[0], "Temperature");
@@ -739,7 +739,7 @@ fn date() {
     setup();
 
     let path = format!("{}/tests/date.xlsx", env!("CARGO_MANIFEST_DIR"));
-    let mut xls: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut xls: Xlsx<_> = open_workbook(&path).unwrap();
     let range = xls.worksheet_range_at(0).unwrap().unwrap();
 
     assert_eq!(range.get_value((0, 0)), Some(&DateTime(44197.0)));
@@ -758,7 +758,7 @@ fn issue_219() {
     let path = format!("{}/tests/issue219.xls", env!("CARGO_MANIFEST_DIR"));
 
     // should not panic
-    let _: Xls<_> = open_workbook(&path, None).unwrap();
+    let _: Xls<_> = open_workbook(&path).unwrap();
 }
 
 #[test]
@@ -766,7 +766,7 @@ fn issue_221() {
     setup();
 
     let path = format!("{}/tests/issue221.xlsm", env!("CARGO_MANIFEST_DIR"));
-    let mut excel: Xlsx<_> = open_workbook(&path, None).unwrap();
+    let mut excel: Xlsx<_> = open_workbook(&path).unwrap();
 
     let range = excel.worksheet_range("Sheet1").unwrap().unwrap();
     range_eq!(

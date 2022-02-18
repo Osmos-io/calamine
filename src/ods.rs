@@ -15,7 +15,7 @@ use zip::read::{ZipArchive, ZipFile};
 use zip::result::ZipError;
 
 use crate::vba::VbaProject;
-use crate::{CustomDateFinder, DataType, Metadata, Range, Reader};
+use crate::{DataType, Metadata, Range, Reader};
 use std::marker::PhantomData;
 
 const MIMETYPE: &[u8] = b"application/vnd.oasis.opendocument.spreadsheet";
@@ -110,7 +110,7 @@ impl<RS: Read + Seek> Reader for Ods<RS> {
     type RS = RS;
     type Error = OdsError;
 
-    fn new(reader: RS, _custom_date_finder: Option<CustomDateFinder>) -> Result<Self, OdsError>
+    fn new(reader: RS) -> Result<Self, OdsError>
     where
         RS: Read + Seek,
     {

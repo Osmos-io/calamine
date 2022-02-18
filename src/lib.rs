@@ -12,7 +12,7 @@
 //!
 //! // opens a new workbook
 //! # let path = format!("{}/tests/issue3.xlsm", env!("CARGO_MANIFEST_DIR"));
-//! let mut workbook: Xlsx<_> = open_workbook(path, None).expect("Cannot open file");
+//! let mut workbook: Xlsx<_> = open_workbook(path).expect("Cannot open file");
 //!
 //! // Read whole worksheet data and provide some statistics
 //! if let Some(Ok(range)) = workbook.worksheet_range("Sheet1") {
@@ -93,11 +93,6 @@ pub use crate::xlsx::{Xlsx, XlsxError};
 
 use crate::vba::VbaProject;
 
-/// A function pointer that is used to determine if the xlsx metadata means
-/// the cell contains a date. Required to plumb in here because of backwards
-/// compatibility in our pipelines. :(
-pub type CustomDateFinder = fn(&str) -> bool;
-
 // https://msdn.microsoft.com/en-us/library/office/ff839168.aspx
 /// An enum to represent all different errors that can appear as
 /// a value in a worksheet cell
@@ -157,10 +152,7 @@ pub trait Reader: Sized {
     type Error: std::fmt::Debug + From<std::io::Error>;
 
     /// Creates a new instance.
-    fn new(
-        reader: Self::RS,
-        custom_date_finder: Option<CustomDateFinder>,
-    ) -> Result<Self, Self::Error>;
+    fn new(reader: Self::RS) -> Result<Self, Self::Error>;
     /// Gets `VbaProject`
     fn vba_project(&mut self) -> Option<Result<Cow<'_, VbaProject>, Self::Error>>;
     /// Initialize
@@ -181,7 +173,7 @@ pub trait Reader: Sized {
     /// use calamine::{Xlsx, open_workbook, Reader};
     ///
     /// # let path = format!("{}/tests/issue3.xlsm", env!("CARGO_MANIFEST_DIR"));
-    /// let mut workbook: Xlsx<_> = open_workbook(path, None).unwrap();
+    /// let mut workbook: Xlsx<_> = open_workbook(path).unwrap();
     /// println!("Sheets: {:#?}", workbook.sheet_names());
     /// ```
     fn sheet_names(&self) -> &[String] {
@@ -202,16 +194,13 @@ pub trait Reader: Sized {
 }
 
 /// Convenient function to open a file with a BufReader<File>
-pub fn open_workbook<R, P>(
-    path: P,
-    custom_date_finder: Option<CustomDateFinder>,
-) -> Result<R, R::Error>
+pub fn open_workbook<R, P>(path: P) -> Result<R, R::Error>
 where
     R: Reader<RS = BufReader<File>>,
     P: AsRef<Path>,
 {
     let file = BufReader::new(File::open(path)?);
-    R::new(file, custom_date_finder)
+    R::new(file)
 }
 
 /// A trait to constrain cells
@@ -539,7 +528,7 @@ impl<T: CellType> Range<T> {
     /// # use calamine::{Reader, Error, open_workbook, Xlsx, RangeDeserializerBuilder};
     /// fn main() -> Result<(), Error> {
     ///     let path = format!("{}/tests/temperature.xlsx", env!("CARGO_MANIFEST_DIR"));
-    ///     let mut workbook: Xlsx<_> = open_workbook(path, None)?;
+    ///     let mut workbook: Xlsx<_> = open_workbook(path)?;
     ///     let mut sheet = workbook.worksheet_range("Sheet1")
     ///         .ok_or(Error::Msg("Cannot find 'Sheet1'"))??;
     ///     let mut iter = sheet.deserialize()?;

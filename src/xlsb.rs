@@ -14,7 +14,7 @@ use zip::result::ZipError;
 
 use crate::utils::{push_column, read_f64, read_i32, read_u16, read_u32, read_usize};
 use crate::vba::VbaProject;
-use crate::{Cell, CellErrorType, CustomDateFinder, DataType, Metadata, Range, Reader};
+use crate::{Cell, CellErrorType, DataType, Metadata, Range, Reader};
 
 /// A Xlsb specific error
 #[derive(Debug)]
@@ -478,7 +478,7 @@ impl<RS: Read + Seek> Reader for Xlsb<RS> {
     type RS = RS;
     type Error = XlsbError;
 
-    fn new(reader: RS, _custom_date_finder: Option<CustomDateFinder>) -> Result<Self, XlsbError>
+    fn new(reader: RS) -> Result<Self, XlsbError>
     where
         RS: Read + Seek,
     {

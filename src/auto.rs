@@ -2,9 +2,7 @@
 
 use crate::errors::Error;
 use crate::vba::VbaProject;
-use crate::{
-    open_workbook, CustomDateFinder, DataType, Metadata, Ods, Range, Reader, Xls, Xlsb, Xlsx,
-};
+use crate::{open_workbook, DataType, Metadata, Ods, Range, Reader, Xls, Xlsb, Xlsx};
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::BufReader;
@@ -25,62 +23,35 @@ pub enum Sheets {
 /// Opens a workbook and define the file type at runtime.
 ///
 /// Whenever possible use the statically known `open_workbook` function instead
-pub fn open_workbook_auto<P: AsRef<Path>>(
-    path: P,
-    custom_date_finder: Option<CustomDateFinder>,
-) -> Result<Sheets, Error> {
+pub fn open_workbook_auto<P: AsRef<Path>>(path: P) -> Result<Sheets, Error> {
     Ok(match path.as_ref().extension().and_then(|e| e.to_str()) {
-        Some("xls") | Some("xla") => {
-            Sheets::Xls(open_workbook(&path, custom_date_finder).map_err(Error::Xls)?)
-        }
+        Some("xls") | Some("xla") => Sheets::Xls(open_workbook(&path).map_err(Error::Xls)?),
         Some("xlsx") | Some("xlsm") | Some("xlam") => {
-            Sheets::Xlsx(open_workbook(&path, custom_date_finder).map_err(Error::Xlsx)?)
+            Sheets::Xlsx(open_workbook(&path).map_err(Error::Xlsx)?)
         }
-        Some("xlsb") => {
-            Sheets::Xlsb(open_workbook(&path, custom_date_finder).map_err(Error::Xlsb)?)
-        }
-        Some("ods") => Sheets::Ods(open_workbook(&path, custom_date_finder).map_err(Error::Ods)?),
+        Some("xlsb") => Sheets::Xlsb(open_workbook(&path).map_err(Error::Xlsb)?),
+        Some("ods") => Sheets::Ods(open_workbook(&path).map_err(Error::Ods)?),
         _ => {
-            fn open_workbook_xlsx<P: AsRef<Path>>(
-                path: P,
-                custom_date_finder: Option<CustomDateFinder>,
-            ) -> Result<Sheets, Error> {
-                Ok(Sheets::Xlsx(
-                    open_workbook(&path, custom_date_finder).map_err(Error::Xlsx)?,
-                ))
+            fn open_workbook_xlsx<P: AsRef<Path>>(path: P) -> Result<Sheets, Error> {
+                Ok(Sheets::Xlsx(open_workbook(&path).map_err(Error::Xlsx)?))
             }
-            fn open_workbook_xls<P: AsRef<Path>>(
-                path: P,
-                custom_date_finder: Option<CustomDateFinder>,
-            ) -> Result<Sheets, Error> {
-                Ok(Sheets::Xls(
-                    open_workbook(&path, custom_date_finder).map_err(Error::Xls)?,
-                ))
+            fn open_workbook_xls<P: AsRef<Path>>(path: P) -> Result<Sheets, Error> {
+                Ok(Sheets::Xls(open_workbook(&path).map_err(Error::Xls)?))
             }
-            fn open_workbook_xlsb<P: AsRef<Path>>(
-                path: P,
-                custom_date_finder: Option<CustomDateFinder>,
-            ) -> Result<Sheets, Error> {
-                Ok(Sheets::Xlsb(
-                    open_workbook(&path, custom_date_finder).map_err(Error::Xlsb)?,
-                ))
+            fn open_workbook_xlsb<P: AsRef<Path>>(path: P) -> Result<Sheets, Error> {
+                Ok(Sheets::Xlsb(open_workbook(&path).map_err(Error::Xlsb)?))
             }
-            fn open_workbook_ods<P: AsRef<Path>>(
-                path: P,
-                custom_date_finder: Option<CustomDateFinder>,
-            ) -> Result<Sheets, Error> {
-                Ok(Sheets::Ods(
-                    open_workbook(&path, custom_date_finder).map_err(Error::Ods)?,
-                ))
+            fn open_workbook_ods<P: AsRef<Path>>(path: P) -> Result<Sheets, Error> {
+                Ok(Sheets::Ods(open_workbook(&path).map_err(Error::Ods)?))
             }
 
-            return if let Ok(ret) = open_workbook_xlsx(&path, custom_date_finder) {
+            return if let Ok(ret) = open_workbook_xlsx(&path) {
                 Ok(ret)
-            } else if let Ok(ret) = open_workbook_xls(&path, custom_date_finder) {
+            } else if let Ok(ret) = open_workbook_xls(&path) {
                 Ok(ret)
-            } else if let Ok(ret) = open_workbook_xlsb(&path, custom_date_finder) {
+            } else if let Ok(ret) = open_workbook_xlsb(&path) {
                 Ok(ret)
-            } else if let Ok(ret) = open_workbook_ods(&path, custom_date_finder) {
+            } else if let Ok(ret) = open_workbook_ods(&path) {
                 Ok(ret)
             } else {
                 Err(Error::Msg("Cannot detect file format"))
@@ -94,10 +65,7 @@ impl Reader for Sheets {
     type Error = Error;
 
     /// Creates a new instance.
-    fn new(
-        _reader: Self::RS,
-        _custom_date_finder: Option<CustomDateFinder>,
-    ) -> Result<Self, Self::Error> {
+    fn new(_reader: Self::RS) -> Result<Self, Self::Error> {
         Err(Error::Msg("Sheets must be created from a Path"))
     }
 
