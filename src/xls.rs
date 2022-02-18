@@ -10,7 +10,7 @@ use log::debug;
 use crate::cfb::{Cfb, XlsEncoding};
 use crate::utils::{push_column, read_f64, read_i32, read_u16, read_u32};
 use crate::vba::VbaProject;
-use crate::{Cell, CellErrorType, DataType, Metadata, Range, Reader};
+use crate::{Cell, CellErrorType, CustomDateFinder, DataType, Metadata, Range, Reader};
 
 #[derive(Debug)]
 /// An enum to handle Xls specific errors
@@ -189,7 +189,7 @@ impl<RS: Read + Seek> Reader for Xls<RS> {
     type RS = RS;
     type Error = XlsError;
 
-    fn new(reader: RS) -> Result<Self, XlsError>
+    fn new(reader: RS, _custom_date_finder: Option<CustomDateFinder>) -> Result<Self, XlsError>
     where
         RS: Read + Seek,
     {

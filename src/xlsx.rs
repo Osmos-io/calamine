@@ -12,7 +12,7 @@ use zip::read::{ZipArchive, ZipFile};
 use zip::result::ZipError;
 
 use crate::vba::VbaProject;
-use crate::{Cell, CellErrorType, DataType, Metadata, Range, Reader, Table};
+use crate::{Cell, CellErrorType, CustomDateFinder, DataType, Metadata, Range, Reader, Table};
 
 type XlsReader<'a> = XmlReader<BufReader<ZipFile<'a>>>;
 
@@ -157,6 +157,8 @@ where
     formats: Vec<CellFormat>,
     /// Metadata
     metadata: Metadata,
+    /// Optional date_formating_fn
+    custom_date_finder: Option<CustomDateFinder>,
 }
 
 impl<RS: Read + Seek> Xlsx<RS> {
@@ -193,6 +195,8 @@ impl<RS: Read + Seek> Xlsx<RS> {
 
         let mut buf = Vec::new();
         let mut inner_buf = Vec::new();
+        // appease the borrow checker
+        let custom_date_finder = self.custom_date_finder;
         loop {
             buf.clear();
             match xml.read_event(&mut buf) {
@@ -233,7 +237,12 @@ impl<RS: Read + Seek> Xlsx<RS> {
                                     .find(|a| a.key == b"numFmtId")
                                     .map_or(CellFormat::Other, |a| {
                                         match number_formats.get(&*a.value) {
-                                            Some(fmt) if is_custom_date_format(fmt) => {
+                                            Some(fmt)
+                                                if is_custom_date_format(
+                                                    fmt,
+                                                    custom_date_finder,
+                                                ) =>
+                                            {
                                                 CellFormat::Date
                                             }
                                             None if is_builtin_date_format_id(&a.value) => {
@@ -652,7 +661,7 @@ impl<RS: Read + Seek> Reader for Xlsx<RS> {
     type RS = RS;
     type Error = XlsxError;
 
-    fn new(reader: RS) -> Result<Self, XlsxError>
+    fn new(reader: RS, custom_date_finder: Option<CustomDateFinder>) -> Result<Self, XlsxError>
     where
         RS: Read + Seek,
     {
@@ -663,6 +672,7 @@ impl<RS: Read + Seek> Reader for Xlsx<RS> {
             sheets: Vec::new(),
             tables: None,
             metadata: Metadata::default(),
+            custom_date_finder,
         };
         xlsx.read_shared_strings()?;
         xlsx.read_styles()?;
@@ -949,8 +959,12 @@ fn read_sheet_data(
 
 // This tries to detect number formats that are definitely date/time formats.
 // This is definitely not perfect!
-fn is_custom_date_format(format: &str) -> bool {
-    format.bytes().all(|c| b"mdyMDYhsHS-/.: \\".contains(&c))
+fn is_custom_date_format(
+    format: &str,
+    custom_date_finder: Option<crate::CustomDateFinder>,
+) -> bool {
+    let is_date_fmt = custom_date_finder.map(|f| f(format)).unwrap_or(false);
+    is_date_fmt || format.bytes().all(|c| b"mdyMDYhsHS-/.: \\".contains(&c))
 }
 
 fn is_builtin_date_format_id(id: &[u8]) -> bool {

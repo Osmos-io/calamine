@@ -144,7 +144,7 @@ impl VbaProject {
     /// use calamine::{Reader, open_workbook, Xlsx};
     ///
     /// # let path = format!("{}/tests/vba.xlsm", env!("CARGO_MANIFEST_DIR"));
-    /// let mut xl: Xlsx<_> = open_workbook(path).expect("Cannot find excel file");
+    /// let mut xl: Xlsx<_> = open_workbook(path, None).expect("Cannot find excel file");
     /// if let Some(Ok(mut vba)) = xl.vba_project() {
     ///     let vba = vba.to_mut();
     ///     let modules = vba.get_module_names().into_iter()
