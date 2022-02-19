@@ -140,9 +140,13 @@ enum CellFormat {
     Date,
 }
 
+/// struct used to a function that does some custom date finding
+/// while allowing us some backwards compatability.
 #[derive(Default)]
 pub struct OsmosXlsxConfig {
-    custom_date_finder: Option<fn(&str) -> bool>,
+    /// optional function used to parse number fmt strings and guess
+    /// if the number is a date
+    pub custom_date_finder: Option<fn(&str) -> bool>,
 }
 
 /// A struct representing xml zipped excel file
