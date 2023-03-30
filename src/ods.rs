@@ -16,7 +16,7 @@ use zip::read::{ZipArchive, ZipFile};
 use zip::result::ZipError;
 
 use crate::vba::VbaProject;
-use crate::{DataType, Metadata, Range, Reader};
+use crate::{Cell, DataType, IndexIter, Metadata, Range, Reader};
 use std::marker::PhantomData;
 
 const MIMETYPE: &[u8] = b"application/vnd.oasis.opendocument.spreadsheet";
@@ -260,7 +260,10 @@ fn read_table(reader: &mut OdsReader<'_>) -> Result<(Range<DataType>, Range<Stri
     Ok((get_range(cells, &cols), get_range(formulas, &cols)))
 }
 
-fn get_range<T: Default + Clone + PartialEq>(mut cells: Vec<T>, cols: &[usize]) -> Range<T> {
+fn get_range<T: Default + Clone + PartialEq + std::fmt::Debug>(
+    mut cells: Vec<T>,
+    cols: &[usize],
+) -> Range<T> {
     // find smallest area with non empty Cells
     let mut row_min = None;
     let mut row_max = 0;
@@ -312,11 +315,25 @@ fn get_range<T: Default + Clone + PartialEq>(mut cells: Vec<T>, cols: &[usize]) 
         }
         cells = new_cells;
     }
-    Range {
-        start: (row_min as u32, col_min as u32),
-        end: (row_max as u32, col_max as u32),
-        inner: cells,
-    }
+
+    let start = (row_min as u32, col_min as u32);
+    let end = (row_max as u32, col_max as u32);
+
+    let index_iter = IndexIter::new(start, end);
+
+    let cells = cells.into_iter();
+
+    let triplets = index_iter
+        .zip(cells)
+        .map(|((row, col), val)| (row, col, val));
+
+    Range::from_triplets(triplets)
+
+    // Range {
+    //     start: (row_min as u32, col_min as u32),
+    //     end: (row_max as u32, col_max as u32),
+    //     inner: cells,
+    // }
 }
 
 fn read_row(

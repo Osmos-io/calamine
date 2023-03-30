@@ -32,7 +32,7 @@ fn main() {
 fn write_range<W: Write>(dest: &mut W, range: &Range<DataType>) -> std::io::Result<()> {
     let n = range.get_size().1 - 1;
     for r in range.rows() {
-        for (i, c) in r.iter().enumerate() {
+        for (i, c) in r.enumerate() {
             match *c {
                 DataType::Empty => Ok(()),
                 DataType::String(ref s) => write!(dest, "{}", s),

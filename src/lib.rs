@@ -22,7 +22,7 @@
 //!              total_cells, non_empty_cells);
 //!     // alternatively, we can manually filter rows
 //!     assert_eq!(non_empty_cells, range.rows()
-//!         .flat_map(|r| r.iter().filter(|&c| c != &DataType::Empty)).count());
+//!         .flat_map(|r| r.into_iter().filter(|c| *c != &DataType::Empty)).count());
 //! }
 //!
 //! // Check if the workbook has a vba project
@@ -51,7 +51,7 @@
 //!                 .worksheet_formula(&s)
 //!                 .expect("sheet not found")
 //!                 .expect("error while getting formula")
-//!                 .rows().flat_map(|r| r.iter().filter(|f| !f.is_empty()))
+//!                 .rows().flat_map(|r| r.into_iter().filter(|f| !f.is_empty()))
 //!                 .count(),
 //!              s);
 //! }
@@ -76,9 +76,12 @@ pub mod vba;
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
 use std::cmp::{max, min};
+use std::collections::HashMap;
 use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek};
+use std::iter::{FusedIterator, Map};
+use std::marker::PhantomData;
 use std::ops::{Index, IndexMut};
 use std::path::Path;
 
@@ -254,37 +257,11 @@ impl<T: CellType> Cell<T> {
 pub struct Range<T> {
     start: (u32, u32),
     end: (u32, u32),
-    inner: Vec<T>,
+    inner: HashMap<(u32, u32), T>,
+    empty_value: T,
 }
 
-impl<T: CellType> Range<T> {
-    /// Creates a new non-empty `Range`
-    ///
-    /// When possible, prefer the more efficient `Range::from_sparse`
-    ///
-    /// # Panics
-    ///
-    /// Panics if start.0 > end.0 or start.1 > end.1
-    #[inline]
-    pub fn new(start: (u32, u32), end: (u32, u32)) -> Range<T> {
-        assert!(start <= end, "invalid range bounds");
-        Range {
-            start,
-            end,
-            inner: vec![T::default(); ((end.0 - start.0 + 1) * (end.1 - start.1 + 1)) as usize],
-        }
-    }
-
-    /// Creates a new empty range
-    #[inline]
-    pub fn empty() -> Range<T> {
-        Range {
-            start: (0, 0),
-            end: (0, 0),
-            inner: Vec::new(),
-        }
-    }
-
+impl<T> Range<T> {
     /// Get top left cell position (row, column)
     #[inline]
     pub fn start(&self) -> Option<(u32, u32)> {
@@ -337,53 +314,6 @@ impl<T: CellType> Range<T> {
         self.inner.is_empty()
     }
 
-    /// Creates a `Range` from a coo sparse vector of `Cell`s.
-    ///
-    /// Coordinate list (COO) is the natural way cells are stored
-    /// Inner size is defined only by non empty.
-    ///
-    /// cells: `Vec` of non empty `Cell`s, sorted by row
-    ///
-    /// # Panics
-    ///
-    /// panics when a `Cell` row is lower than the first `Cell` row or
-    /// bigger than the last `Cell` row.
-    pub fn from_sparse(cells: Vec<Cell<T>>) -> Range<T> {
-        if cells.is_empty() {
-            Range::empty()
-        } else {
-            // search bounds
-            let row_start = cells.first().unwrap().pos.0;
-            let row_end = cells.last().unwrap().pos.0;
-            let mut col_start = std::u32::MAX;
-            let mut col_end = 0;
-            for c in cells.iter().map(|c| c.pos.1) {
-                if c < col_start {
-                    col_start = c;
-                }
-                if c > col_end {
-                    col_end = c
-                }
-            }
-            let cols = (col_end - col_start + 1) as usize;
-            let rows = (row_end - row_start + 1) as usize;
-            let len = cols.saturating_mul(rows);
-            let mut v = vec![T::default(); len];
-            v.shrink_to_fit();
-            for c in cells {
-                let row = (c.pos.0 - row_start) as usize;
-                let col = (c.pos.1 - col_start) as usize;
-                let idx = row.saturating_mul(cols) + col;
-                v.get_mut(idx).map(|v| *v = c.val);
-            }
-            Range {
-                start: (row_start, col_start),
-                end: (row_end, col_end),
-                inner: v,
-            }
-        }
-    }
-
     /// Set inner value from absolute position
     ///
     /// # Remarks
@@ -412,49 +342,15 @@ impl<T: CellType> Range<T> {
             self.start.0 <= absolute_position.0 && self.start.1 <= absolute_position.1,
             "absolute_position out of bounds"
         );
+        // maybe update the start and end values
+        self.start.0 = self.start.0.min(absolute_position.0);
+        self.start.1 = self.start.1.min(absolute_position.1);
 
-        // check if we need to change range dimension (strangely happens sometimes ...)
-        match (
-            self.end.0 < absolute_position.0,
-            self.end.1 < absolute_position.1,
-        ) {
-            (false, false) => (), // regular case, position within bounds
-            (true, false) => {
-                let len = (absolute_position.0 - self.end.0 + 1) as usize * self.width();
-                self.inner.extend_from_slice(&vec![T::default(); len]);
-                self.end.0 = absolute_position.0;
-            }
-            // missing some rows
-            (e, true) => {
-                let height = if e {
-                    (absolute_position.0 - self.start.0 + 1) as usize
-                } else {
-                    self.height()
-                };
-                let width = (absolute_position.1 - self.start.1 + 1) as usize;
-                let old_width = self.width();
-                let mut data = Vec::with_capacity(width * height);
-                let empty = vec![T::default(); width - old_width];
-                for sce in self.inner.chunks(old_width) {
-                    data.extend_from_slice(sce);
-                    data.extend_from_slice(&empty);
-                }
-                data.extend_from_slice(&vec![T::default(); width * (height - self.height())]);
-                if e {
-                    self.end = absolute_position
-                } else {
-                    self.end.1 = absolute_position.1
-                }
-                self.inner = data;
-            } // missing some columns
-        }
+        self.end.0 = self.end.0.max(absolute_position.0);
+        self.end.1 = self.end.1.max(absolute_position.1);
 
-        let pos = (
-            absolute_position.0 - self.start.0,
-            absolute_position.1 - self.start.1,
-        );
-        let idx = pos.0 as usize * self.width() + pos.1 as usize;
-        self.inner[idx] = value;
+        // add the value into matrix
+        self.inner.insert(absolute_position, value);
     }
 
     /// Get cell value from **absolute position**.
@@ -482,21 +378,31 @@ impl<T: CellType> Range<T> {
     /// assert_eq!(range.get_value((0, 0)), None);
     /// assert_eq!(range[(0, 0)], 0);
     /// ```
+    #[inline]
     pub fn get_value(&self, absolute_position: (u32, u32)) -> Option<&T> {
-        let p = absolute_position;
-        if p.0 >= self.start.0 && p.0 <= self.end.0 && p.1 >= self.start.1 && p.1 <= self.end.1 {
-            return self.get((
-                (absolute_position.0 - self.start.0) as usize,
-                (absolute_position.1 - self.start.1) as usize,
-            ));
+        if self.start.0 > absolute_position.0
+            || self.start.1 > absolute_position.1
+            || self.end.0 < absolute_position.0
+            || self.end.1 < absolute_position.1
+        {
+            return None;
         }
-        None
+
+        Some(
+            self.inner
+                .get(&absolute_position)
+                .unwrap_or(&self.empty_value),
+        )
     }
 
     /// Get cell value from **relative position**.
     pub fn get(&self, relative_position: (usize, usize)) -> Option<&T> {
-        let (row, col) = relative_position;
-        self.inner.get(row * self.width() + col)
+        let absolute_position = (
+            relative_position.0 as u32 + self.start.0,
+            relative_position.1 as u32 + self.start.1,
+        );
+
+        self.get_value(absolute_position)
     }
 
     /// Get an iterator over inner rows
@@ -510,30 +416,34 @@ impl<T: CellType> Range<T> {
     /// assert_eq!(range.rows().map(|r| r.len()).sum::<usize>(), 18);
     /// ```
     pub fn rows(&self) -> Rows<'_, T> {
-        if self.inner.is_empty() {
-            Rows { inner: None }
-        } else {
-            let width = self.width();
-            Rows {
-                inner: Some(self.inner.chunks(width)),
-            }
-        }
+        // if self.inner.is_empty() {
+        //     Rows { inner: None }
+        // } else {
+        //     let width = self.width();
+        //     Rows {
+        //         inner: Some(self.inner.chunks(width)),
+        //     }
+        // }
+        Rows::new(self)
     }
 
     /// Get an iterator over used cells only
-    pub fn used_cells(&self) -> UsedCells<'_, T> {
-        UsedCells {
-            width: self.width(),
-            inner: self.inner.iter().enumerate(),
+    pub fn used_cells<'a>(&'a self) -> UsedCells<'a, T> {
+        fn to_triplet<'a, T>(((row, col), val): (&'a (u32, u32), &'a T)) -> (usize, usize, &'a T) {
+            (*row as usize, *col as usize, val)
         }
+
+        let inner = self
+            .inner
+            .iter()
+            .map(to_triplet as fn((&'a (u32, u32), &'a T)) -> (usize, usize, &'a T));
+
+        UsedCells { inner }
     }
 
     /// Get an iterator over all cells in this range
     pub fn cells(&self) -> Cells<'_, T> {
-        Cells {
-            width: self.width(),
-            inner: self.inner.iter().enumerate(),
-        }
+        Cells::new(self)
     }
 
     /// Build a `RangeDeserializer` from this configuration.
@@ -567,7 +477,65 @@ impl<T: CellType> Range<T> {
     {
         RangeDeserializerBuilder::new().from_range(self)
     }
+}
 
+impl<T: Default> Range<T> {
+    /// Creates a new non-empty `Range`
+    ///
+    /// When possible, prefer the more efficient `Range::from_sparse`
+    ///
+    /// # Panics
+    ///
+    /// Panics if start.0 > end.0 or start.1 > end.1
+    #[inline]
+    pub fn new(start: (u32, u32), end: (u32, u32)) -> Range<T> {
+        assert!(start <= end, "invalid range bounds");
+        Range {
+            start,
+            end,
+            inner: HashMap::default(),
+            empty_value: T::default(),
+        }
+    }
+
+    /// Creates a new empty range
+    #[inline]
+    pub fn empty() -> Range<T> {
+        Range {
+            start: (0, 0),
+            end: (0, 0),
+            inner: HashMap::default(),
+            empty_value: T::default(),
+        }
+    }
+
+    /// Create a range from a list of triplets in the form `(row, col, T)`.
+    pub fn from_triplets<I: Iterator<Item = (u32, u32, T)>>(triplets: I) -> Self {
+        let (start, end, inner) = triplets.fold(
+            ((u32::MAX, u32::MIN), (0u32, 0u32), HashMap::new()),
+            |(mut start, mut end, mut inner), (row, col, val)| {
+                start.0 = min(start.0, row);
+                start.1 = min(start.1, col);
+
+                end.0 = max(end.0, row);
+                end.1 = max(end.1, col);
+
+                inner.insert((row, col), val);
+
+                (start, end, inner)
+            },
+        );
+
+        Self {
+            start,
+            end,
+            inner,
+            empty_value: T::default(),
+        }
+    }
+}
+
+impl<T: Clone> Range<T> {
     /// Build a new `Range` out of this range
     ///
     /// # Remarks
@@ -592,191 +560,271 @@ impl<T: CellType> Range<T> {
     /// assert_eq!(c.get_value((2, 2)), Some(&DataType::Bool(true)));
     /// ```
     pub fn range(&self, start: (u32, u32), end: (u32, u32)) -> Range<T> {
-        let mut other = Range::new(start, end);
-        let (self_start_row, self_start_col) = self.start;
-        let (self_end_row, self_end_col) = self.end;
-        let (other_start_row, other_start_col) = other.start;
-        let (other_end_row, other_end_col) = other.end;
+        let subview = self
+            .inner
+            .clone()
+            .into_iter()
+            .filter(|(pos, _value)| pos >= &start && pos <= &end)
+            .collect::<HashMap<(u32, u32), T>>();
 
-        // copy data from self to other
-        let start_row = max(self_start_row, other_start_row);
-        let end_row = min(self_end_row, other_end_row);
-        let start_col = max(self_start_col, other_start_col);
-        let end_col = min(self_end_col, other_end_col);
-
-        if start_row > end_row || start_col > end_col {
-            return other;
+        Self {
+            start,
+            end,
+            inner: subview,
+            empty_value: self.empty_value.clone(),
         }
-
-        let self_width = self.width();
-        let other_width = other.width();
-
-        // change referential
-        //
-        // we want to copy range: start_row..(end_row + 1)
-        // In self referential it is (start_row - self_start_row)..(end_row + 1 - self_start_row)
-        let self_row_start = (start_row - self_start_row) as usize;
-        let self_row_end = (end_row + 1 - self_start_row) as usize;
-        let self_col_start = (start_col - self_start_col) as usize;
-        let self_col_end = (end_col + 1 - self_start_col) as usize;
-
-        let other_row_start = (start_row - other_start_row) as usize;
-        let other_row_end = (end_row + 1 - other_start_row) as usize;
-        let other_col_start = (start_col - other_start_col) as usize;
-        let other_col_end = (end_col + 1 - other_start_col) as usize;
-
-        {
-            let self_rows = self
-                .inner
-                .chunks(self_width)
-                .take(self_row_end)
-                .skip(self_row_start);
-
-            let other_rows = other
-                .inner
-                .chunks_mut(other_width)
-                .take(other_row_end)
-                .skip(other_row_start);
-
-            for (self_row, other_row) in self_rows.zip(other_rows) {
-                let self_cols = &self_row[self_col_start..self_col_end];
-                let other_cols = &mut other_row[other_col_start..other_col_end];
-                other_cols.clone_from_slice(self_cols);
-            }
-        }
-
-        other
     }
 }
 
-impl<T: CellType> Index<usize> for Range<T> {
-    type Output = [T];
-    fn index(&self, index: usize) -> &[T] {
-        let width = self.width();
-        &self.inner[index * width..(index + 1) * width]
+impl<T: CellType> Range<T> {
+    /// Creates a `Range` from a coo sparse vector of `Cell`s.
+    ///
+    /// Coordinate list (COO) is the natural way cells are stored
+    /// Inner size is defined only by non empty.
+    ///
+    /// cells: `Vec` of non empty `Cell`s, sorted by row
+    ///
+    /// # Panics
+    ///
+    /// panics when a `Cell` row is lower than the first `Cell` row or
+    /// bigger than the last `Cell` row.
+    pub fn from_sparse(cells: Vec<Cell<T>>) -> Range<T> {
+        if cells.is_empty() {
+            Range::empty()
+        } else {
+            let capacity = cells.len();
+
+            let (start, end, inner) = cells.into_iter().fold(
+                (
+                    (u32::MAX, u32::MAX),
+                    (0u32, 0u32),
+                    HashMap::with_capacity(capacity),
+                ),
+                |(mut start, mut end, mut inner), cell| {
+                    if start.0 > cell.pos.0 {
+                        start.0 = cell.pos.0;
+                    }
+                    if start.1 > cell.pos.1 {
+                        start.1 = cell.pos.1;
+                    }
+                    if end.0 < cell.pos.0 {
+                        end.0 = cell.pos.0;
+                    }
+                    if end.1 < cell.pos.1 {
+                        end.1 = cell.pos.1;
+                    }
+                    inner.insert(cell.pos, cell.val);
+                    (start, end, inner)
+                },
+            );
+
+            Range {
+                start,
+                end,
+                inner,
+                empty_value: T::default(),
+            }
+        }
     }
 }
 
 impl<T: CellType> Index<(usize, usize)> for Range<T> {
     type Output = T;
-    fn index(&self, index: (usize, usize)) -> &T {
-        let (height, width) = self.get_size();
-        assert!(index.1 < width && index.0 < height, "index out of bounds");
-        &self.inner[index.0 * width + index.1]
+    fn index(&self, (row, col): (usize, usize)) -> &T {
+        self.get_value((row as u32, col as u32))
+            .unwrap_or(&self.empty_value)
     }
 }
 
-impl<T: CellType> IndexMut<usize> for Range<T> {
-    fn index_mut(&mut self, index: usize) -> &mut [T] {
-        let width = self.width();
-        &mut self.inner[index * width..(index + 1) * width]
+/// Create an iterator over the coordinates in the start and end range.
+#[derive(Debug)]
+pub struct IndexIter {
+    start: (u32, u32),
+    end: (u32, u32),
+    row: u32,
+    col: u32,
+}
+
+impl IndexIter {
+    /// Create a new iterator over the coordinates in the start and end range.
+    pub fn new(start: (u32, u32), end: (u32, u32)) -> Self {
+        let row = start.0;
+        let col = start.1;
+
+        Self {
+            start,
+            end,
+            row,
+            col,
+        }
+    }
+
+    /// Get the number of columns in the iter. This is the number of values per row.
+    pub fn num_columns(&self) -> usize {
+        (self.end.1 - self.start.1) as usize
+    }
+
+    /// Get the number of rows in the iterator
+    pub fn num_rows(&self) -> usize {
+        (self.end.0 - self.start.0) as usize
     }
 }
 
-impl<T: CellType> IndexMut<(usize, usize)> for Range<T> {
-    fn index_mut(&mut self, index: (usize, usize)) -> &mut T {
-        let (height, width) = self.get_size();
-        assert!(index.1 < width && index.0 < height, "index out of bounds");
-        &mut self.inner[index.0 * width + index.1]
+impl Iterator for IndexIter {
+    type Item = (u32, u32);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.row > self.end.0 {
+            return None;
+        }
+
+        let pos = (self.row, self.col);
+
+        self.col += 1;
+
+        if self.col > self.end.1 {
+            self.col = self.start.1;
+            self.row += 1;
+        }
+
+        Some(pos)
+    }
+}
+
+impl FusedIterator for IndexIter {}
+
+/// Iterator over cells within some container with a known size.
+pub struct SizedCellIter<'a, T> {
+    len: usize,
+    range: &'a Range<T>,
+    indexes: Box<dyn Iterator<Item = (u32, u32)>>,
+}
+
+impl<'a, T> SizedCellIter<'a, T> {
+    /// Create an iterator over a set of cells in a range
+    pub fn new<'b: 'a>(
+        range: &'a Range<T>,
+        indexes: Box<dyn Iterator<Item = (u32, u32)>>,
+        len: usize,
+    ) -> Self {
+        Self {
+            len,
+            indexes,
+            range,
+        }
+    }
+}
+
+impl<'a, T> Iterator for SizedCellIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(pos) = self.indexes.next() {
+            self.range.get_value(pos)
+        } else {
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len, Some(self.len))
+    }
+}
+
+impl<'a, T> ExactSizeIterator for SizedCellIter<'a, T> {}
+
+/// Iterator over the rows of a range.
+pub struct Rows<'a, T> {
+    range: &'a Range<T>,
+    current_row: u32,
+    bounds: ((u32, u32), (u32, u32)),
+}
+
+impl<'a, T> Rows<'a, T> {
+    /// Create a new iterator over the rows of a range.
+    pub fn new(range: &'a Range<T>) -> Self {
+        let start = range.start;
+        let end = range.end;
+
+        Self {
+            range,
+            current_row: start.0,
+            bounds: (start, end),
+        }
+    }
+}
+
+impl<'a, T> Iterator for Rows<'a, T> {
+    type Item = SizedCellIter<'a, T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let current_row = self.current_row;
+        self.current_row = current_row + 1;
+
+        let (start, end) = self.bounds;
+
+        if current_row > end.0 {
+            return None;
+        }
+
+        Some(SizedCellIter::new(
+            self.range,
+            Box::new((start.1..=end.1).map(move |col| (current_row, col))),
+            (end.1 - start.1) as usize + 1,
+        ))
     }
 }
 
 /// A struct to iterate over all cells
 #[derive(Debug)]
-pub struct Cells<'a, T: CellType> {
-    width: usize,
-    inner: std::iter::Enumerate<std::slice::Iter<'a, T>>,
+pub struct Cells<'a, T> {
+    range: &'a Range<T>,
+    iter: IndexIter,
+}
+
+impl<'a, T> Cells<'a, T> {
+    /// Create a new iterator over all cells in the range.
+    pub fn new(range: &'a Range<T>) -> Self {
+        let iter = IndexIter::new(range.start, range.end);
+
+        Self { range, iter }
+    }
 }
 
 impl<'a, T: 'a + CellType> Iterator for Cells<'a, T> {
     type Item = (usize, usize, &'a T);
+
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|(i, v)| {
-            let row = i / self.width;
-            let col = i % self.width;
-            (row, col, v)
-        })
-    }
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
-    }
-}
-
-impl<'a, T: 'a + CellType> DoubleEndedIterator for Cells<'a, T> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.inner.next_back().map(|(i, v)| {
-            let row = i / self.width;
-            let col = i % self.width;
-            (row, col, v)
+        self.iter.next().map(|(row, col)| {
+            let val = self
+                .range
+                .get_value((row, col))
+                .expect("IndexIter produced an invalid (row, col) combination");
+            (row as usize, col as usize, val)
         })
     }
 }
 
-impl<'a, T: 'a + CellType> ExactSizeIterator for Cells<'a, T> {}
+type TripletFn<'a, T> = fn((&'a (u32, u32), &'a T)) -> (usize, usize, &'a T);
+type UsedCellIter<'a, T> =
+    Map<std::collections::hash_map::Iter<'a, (u32, u32), T>, TripletFn<'a, T>>;
 
 /// A struct to iterate over used cells
 #[derive(Debug)]
-pub struct UsedCells<'a, T: CellType> {
-    width: usize,
-    inner: std::iter::Enumerate<std::slice::Iter<'a, T>>,
+pub struct UsedCells<'a, T> {
+    inner: UsedCellIter<'a, T>,
 }
 
-impl<'a, T: 'a + CellType> Iterator for UsedCells<'a, T> {
+impl<'a, T> Iterator for UsedCells<'a, T>
+where
+    T: 'a + CellType,
+{
     type Item = (usize, usize, &'a T);
+
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner
-            .by_ref()
-            .find(|&(_, v)| v != &T::default())
-            .map(|(i, v)| {
-                let row = i / self.width;
-                let col = i % self.width;
-                (row, col, v)
-            })
-    }
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let (_, up) = self.inner.size_hint();
-        (0, up)
+        self.inner.next()
     }
 }
-
-impl<'a, T: 'a + CellType> DoubleEndedIterator for UsedCells<'a, T> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.inner
-            .by_ref()
-            .rfind(|&(_, v)| v != &T::default())
-            .map(|(i, v)| {
-                let row = i / self.width;
-                let col = i % self.width;
-                (row, col, v)
-            })
-    }
-}
-
-/// An iterator to read `Range` struct row by row
-#[derive(Debug)]
-pub struct Rows<'a, T: CellType> {
-    inner: Option<std::slice::Chunks<'a, T>>,
-}
-
-impl<'a, T: 'a + CellType> Iterator for Rows<'a, T> {
-    type Item = &'a [T];
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.as_mut().and_then(|c| c.next())
-    }
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner
-            .as_ref()
-            .map_or((0, Some(0)), |ch| ch.size_hint())
-    }
-}
-
-impl<'a, T: 'a + CellType> DoubleEndedIterator for Rows<'a, T> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.inner.as_mut().and_then(|c| c.next_back())
-    }
-}
-
-impl<'a, T: 'a + CellType> ExactSizeIterator for Rows<'a, T> {}
 
 /// Struct with the key elements of a table
 pub struct Table<T> {
@@ -785,6 +833,7 @@ pub struct Table<T> {
     pub(crate) columns: Vec<String>,
     pub(crate) data: Range<T>,
 }
+
 impl<T> Table<T> {
     /// Get the name of the table
     pub fn name(&self) -> &str {
@@ -801,5 +850,32 @@ impl<T> Table<T> {
     /// Get a range representing the data from the table (excludes column headers)
     pub fn data(&self) -> &Range<T> {
         &self.data
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::IndexIter;
+
+    #[test]
+    fn test_index_iter() {
+        let start = (0, 0);
+        let end = (2, 2);
+
+        let mut iter = IndexIter::new(start, end);
+
+        assert_eq!(iter.next(), Some((0, 0)));
+        assert_eq!(iter.next(), Some((0, 1)));
+        assert_eq!(iter.next(), Some((0, 2)));
+
+        assert_eq!(iter.next(), Some((1, 0)));
+        assert_eq!(iter.next(), Some((1, 1)));
+        assert_eq!(iter.next(), Some((1, 2)));
+
+        assert_eq!(iter.next(), Some((2, 0)));
+        assert_eq!(iter.next(), Some((2, 1)));
+        assert_eq!(iter.next(), Some((2, 2)));
+
+        assert_eq!(iter.next(), None);
     }
 }

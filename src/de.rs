@@ -266,21 +266,23 @@ where
             Headers::None => ((0..range.width()).collect(), None),
             Headers::All => {
                 if let Some(row) = rows.next() {
-                    let all_indexes = (0..row.len()).collect::<Vec<_>>();
+                    let (row_indexes, row_values): (Vec<usize>, Vec<&'cell T>) =
+                        row.enumerate().unzip();
                     let all_headers = {
-                        let de = RowDeserializer::new(&all_indexes, None, row, current_pos);
+                        let de = RowDeserializer::new(&row_indexes, None, row_values, current_pos);
                         current_pos.0 += 1;
                         Deserialize::deserialize(de)?
                     };
-                    (all_indexes, Some(all_headers))
+                    (row_indexes, Some(all_headers))
                 } else {
                     (Vec::new(), None)
                 }
             }
             Headers::Custom(headers) => {
                 if let Some(row) = rows.next() {
-                    let all_indexes = (0..row.len()).collect::<Vec<_>>();
-                    let de = RowDeserializer::new(&all_indexes, None, row, current_pos);
+                    let (row_indexes, row_values): (Vec<usize>, Vec<&'cell T>) =
+                        row.enumerate().unzip();
+                    let de = RowDeserializer::new(&row_indexes, None, row_values, current_pos);
                     current_pos.0 += 1;
                     let all_headers: Vec<String> = Deserialize::deserialize(de)?;
                     let custom_indexes = headers
@@ -330,7 +332,7 @@ where
         if let Some(row) = rows.next() {
             current_pos.0 += 1;
             let headers = headers.as_ref().map(|h| &**h);
-            let de = RowDeserializer::new(column_indexes, headers, row, current_pos);
+            let de = RowDeserializer::new(column_indexes, headers, row.collect(), current_pos);
             Some(Deserialize::deserialize(de))
         } else {
             None
@@ -345,7 +347,7 @@ where
 }
 
 struct RowDeserializer<'header, 'cell, T> {
-    cells: &'cell [T],
+    cells: Vec<&'cell T>,
     headers: Option<&'header [String]>,
     iter: slice::Iter<'header, usize>, // iterator over column indexes
     peek: Option<usize>,
@@ -359,7 +361,7 @@ where
     fn new(
         column_indexes: &'header [usize],
         headers: Option<&'header [String]>,
-        cells: &'cell [T],
+        cells: Vec<&'cell T>,
         pos: (u32, u32),
     ) -> Self {
         RowDeserializer {

@@ -81,7 +81,7 @@ fn run(f: GlobResult) -> Result<(PathBuf, Option<usize>, usize), FileStatus> {
         cell_errors += range
             .rows()
             .flat_map(|r| {
-                r.iter().filter(|c| {
+                r.into_iter().filter(|c| {
                     if let DataType::Error(_) = **c {
                         true
                     } else {
