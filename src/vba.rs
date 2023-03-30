@@ -4,12 +4,12 @@
 //! https://github.com/unixfreak0037/officeparser/blob/master/officeparser.py
 
 use std::collections::BTreeMap;
-use std::convert::TryInto;
+
 use std::io::Read;
 use std::path::PathBuf;
 
 use byteorder::{LittleEndian, ReadBytesExt};
-use tracing::{debug, warn, Level};
+use tracing::{debug, warn};
 
 use crate::cfb::{Cfb, XlsEncoding};
 use crate::utils::read_u16;
@@ -95,7 +95,7 @@ impl VbaProject {
     pub fn from_cfb<R: Read>(r: &mut R, cfb: &mut Cfb) -> Result<VbaProject, VbaError> {
         // dir stream
         let stream = cfb.get_stream("dir", r)?;
-        let stream = crate::cfb::decompress_stream(&*stream)?;
+        let stream = crate::cfb::decompress_stream(&stream)?;
         let stream = &mut &*stream;
 
         // read dir information record (not used)

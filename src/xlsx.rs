@@ -4,7 +4,7 @@ use std::io::BufReader;
 use std::io::{Read, Seek};
 use std::str::FromStr;
 
-use quick_xml::events::attributes::{Attribute, Attributes};
+use quick_xml::events::attributes::Attribute;
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::name::QName;
 use quick_xml::Reader as XmlReader;
@@ -758,8 +758,8 @@ impl<RS: Read + Seek> Reader<RS> for Xlsx<RS> {
     }
 
     fn worksheet_range(&mut self, name: &str) -> Option<Result<Range<DataType>, XlsxError>> {
-        let xml = match self.sheets.iter().find(|&&(ref n, _)| n == name) {
-            Some(&(_, ref path)) => xml_reader(&mut self.zip, path),
+        let xml = match self.sheets.iter().find(|&(n, _)| n == name) {
+            Some((_, path)) => xml_reader(&mut self.zip, path),
             None => return None,
         };
         let strings = &self.strings;
@@ -772,8 +772,8 @@ impl<RS: Read + Seek> Reader<RS> for Xlsx<RS> {
     }
 
     fn worksheet_formula(&mut self, name: &str) -> Option<Result<Range<String>, XlsxError>> {
-        let xml = match self.sheets.iter().find(|&&(ref n, _)| n == name) {
-            Some(&(_, ref path)) => xml_reader(&mut self.zip, path),
+        let xml = match self.sheets.iter().find(|&(n, _)| n == name) {
+            Some((_, path)) => xml_reader(&mut self.zip, path),
             None => return None,
         };
 

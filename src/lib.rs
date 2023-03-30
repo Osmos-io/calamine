@@ -81,8 +81,8 @@ use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek};
 use std::iter::{FusedIterator, Map};
-use std::marker::PhantomData;
-use std::ops::{Index, IndexMut};
+
+use std::ops::Index;
 use std::path::Path;
 
 pub use crate::auto::{open_workbook_auto, open_workbook_auto_from_rs, Sheets};
@@ -775,8 +775,8 @@ impl<'a, T> Iterator for Rows<'a, T> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let lower = self.bounds.1.0 - self.current_row + 1;
-        let upper = self.bounds.1.0 - self.bounds.0.0 + 1 + 1;
+        let lower = self.bounds.1 .0 - self.current_row + 1;
+        let upper = self.bounds.1 .0 - self.bounds.0 .0 + 1 + 1;
 
         (lower as usize, Some(upper as usize))
     }

@@ -19,7 +19,7 @@ fn count<R: Reader<BufReader<File>>>(path: &str) -> usize {
             .unwrap()
             .unwrap()
             .rows()
-            .flat_map(|r| r.iter())
+            .flatten()
             .count();
     }
     count
