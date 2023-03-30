@@ -773,6 +773,13 @@ impl<'a, T> Iterator for Rows<'a, T> {
             (end.1 - start.1) as usize + 1,
         ))
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let lower = self.bounds.1.0 - self.current_row + 1;
+        let upper = self.bounds.1.0 - self.bounds.0.0 + 1 + 1;
+
+        (lower as usize, Some(upper as usize))
+    }
 }
 
 /// A struct to iterate over all cells
