@@ -65,6 +65,7 @@ mod auto;
 mod cfb;
 mod datatype;
 mod ods;
+mod store;
 mod xls;
 mod xlsb;
 mod xlsx;
@@ -76,11 +77,12 @@ pub mod vba;
 use serde::de::DeserializeOwned;
 use std::borrow::Cow;
 use std::cmp::{max, min};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek};
 use std::iter::{FusedIterator, Map};
+use store::Storage;
 
 use std::ops::Index;
 use std::path::Path;
@@ -257,7 +259,7 @@ impl<T: CellType> Cell<T> {
 pub struct Range<T> {
     start: (u32, u32),
     end: (u32, u32),
-    inner: HashMap<(u32, u32), T>,
+    inner: Storage<T>,
     empty_value: T,
 }
 
@@ -428,15 +430,8 @@ impl<T> Range<T> {
     }
 
     /// Get an iterator over used cells only
-    pub fn used_cells<'a>(&'a self) -> UsedCells<'a, T> {
-        fn to_triplet<'a, T>(((row, col), val): (&'a (u32, u32), &'a T)) -> (usize, usize, &'a T) {
-            (*row as usize, *col as usize, val)
-        }
-
-        let inner = self
-            .inner
-            .iter()
-            .map(to_triplet as fn((&'a (u32, u32), &'a T)) -> (usize, usize, &'a T));
+    pub fn used_cells(& self) -> UsedCells<'_, T> {
+        let inner = self.inner.iter();
 
         UsedCells { inner }
     }
@@ -493,7 +488,7 @@ impl<T: Default> Range<T> {
         Range {
             start,
             end,
-            inner: HashMap::default(),
+            inner: Storage::default(),
             empty_value: T::default(),
         }
     }
@@ -504,7 +499,7 @@ impl<T: Default> Range<T> {
         Range {
             start: (0, 0),
             end: (0, 0),
-            inner: HashMap::default(),
+            inner: Storage::default(),
             empty_value: T::default(),
         }
     }
@@ -512,7 +507,7 @@ impl<T: Default> Range<T> {
     /// Create a range from a list of triplets in the form `(row, col, T)`.
     pub fn from_triplets<I: Iterator<Item = (u32, u32, T)>>(triplets: I) -> Self {
         let (start, end, inner) = triplets.fold(
-            ((u32::MAX, u32::MIN), (0u32, 0u32), HashMap::new()),
+            ((u32::MAX, u32::MIN), (0u32, 0u32), Storage::new()),
             |(mut start, mut end, mut inner), (row, col, val)| {
                 start.0 = min(start.0, row);
                 start.1 = min(start.1, col);
@@ -562,10 +557,14 @@ impl<T: Clone> Range<T> {
     pub fn range(&self, start: (u32, u32), end: (u32, u32)) -> Range<T> {
         let subview = self
             .inner
-            .clone()
-            .into_iter()
-            .filter(|(pos, _value)| pos >= &start && pos <= &end)
-            .collect::<HashMap<(u32, u32), T>>();
+            .iter()
+            .filter(|(row, col, _value)| {
+                row >= &start.0 && row <= &end.0 && col >= &start.1 && col <= &end.1
+            })
+            .fold(Storage::new(), |mut acc, (row, col, val)| {
+                acc.insert((row, col), val.clone());
+                acc
+            });
 
         Self {
             start,
@@ -592,14 +591,8 @@ impl<T: CellType> Range<T> {
         if cells.is_empty() {
             Range::empty()
         } else {
-            let capacity = cells.len();
-
             let (start, end, inner) = cells.into_iter().fold(
-                (
-                    (u32::MAX, u32::MAX),
-                    (0u32, 0u32),
-                    HashMap::with_capacity(capacity),
-                ),
+                ((u32::MAX, u32::MAX), (0u32, 0u32), Storage::new()),
                 |(mut start, mut end, mut inner), cell| {
                     if start.0 > cell.pos.0 {
                         start.0 = cell.pos.0;
@@ -814,12 +807,12 @@ impl<'a, T: 'a + CellType> Iterator for Cells<'a, T> {
 
 type TripletFn<'a, T> = fn((&'a (u32, u32), &'a T)) -> (usize, usize, &'a T);
 type UsedCellIter<'a, T> =
-    Map<std::collections::hash_map::Iter<'a, (u32, u32), T>, TripletFn<'a, T>>;
+    Map<std::collections::btree_map::Iter<'a, (u32, u32), T>, TripletFn<'a, T>>;
 
 /// A struct to iterate over used cells
 #[derive(Debug)]
 pub struct UsedCells<'a, T> {
-    inner: UsedCellIter<'a, T>,
+    inner: store::Iter<'a, T>,
 }
 
 impl<'a, T> Iterator for UsedCells<'a, T>
@@ -829,7 +822,9 @@ where
     type Item = (usize, usize, &'a T);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+        self.inner
+            .next()
+            .map(|(row, col, val)| (row as usize, col as usize, val))
     }
 }
 
